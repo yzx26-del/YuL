@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网吧客流管理系统</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18; --text2: #5a5a54; --text3: #9a9a90;
+    --accent: #1a1a18;
+    --green-bg: #d4edbc; --green-text: #2d6a0a; --green-border: #8fc460;
+    --amber-bg: #fde9b8; --amber-text: #7a4a06; --amber-border: #e8a030;
+    --red-bg: #fde0e0; --red-text: #8a1f1f; --red-border: #e06060;
+    --blue-bg: #ddeeff; --blue-text: #1a4a80; --blue-border: #6699cc;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --surface: #242420; --surface2: #2e2e2a;
+      --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.15);
+      --text: #f0efe8; --text2: #a0a098; --text3: #60605a;
+      --green-bg: #1a3a0a; --green-text: #90d060; --green-border: #3a6a1a;
+      --amber-bg: #3a2800; --amber-text: #e8a030; --amber-border: #7a5010;
+      --red-bg: #3a0a0a; --red-text: #e06060; --red-border: #6a1a1a;
+      --blue-bg: #0a1a3a; --blue-text: #6699cc; --blue-border: #1a3a6a;
+    }
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'PingFang SC','Microsoft YaHei',sans-serif; font-size: 14px; line-height: 1.6; min-height: 100vh; }
+
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; }
+  .header-icon { width: 36px; height: 36px; background: var(--accent); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: var(--surface); font-size: 18px; }
+  .header h1 { font-size: 15px; font-weight: 600; }
+  .header p { font-size: 11px; color: var(--text3); }
+  .sync-status { margin-left: auto; font-size: 12px; display: flex; align-items: center; gap: 6px; color: var(--text3); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+  .sync-dot.ok { background: #4aaa20; }
+  .sync-dot.err { background: #e06060; }
+  .sync-dot.loading { background: #e8a030; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .main { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+  .tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: var(--radius-lg); padding: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; padding: 8px 4px; border: none; background: none; border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+  @media(max-width:600px){.metrics{grid-template-columns:repeat(2,1fr);}}
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+  .metric-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-value { font-size: 24px; font-weight: 600; color: var(--text); line-height: 1; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media(max-width:500px){.form-grid{grid-template-columns:1fr;}}
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12px; color: var(--text2); font-weight: 500; }
+  .form-group input, .form-group select, .form-group textarea { padding: 9px 12px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 56px; }
+
+  .weather-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .weather-btn { padding: 6px 14px; border: 1px solid var(--border2); border-radius: 20px; font-size: 13px; cursor: pointer; background: var(--bg); color: var(--text2); font-family: inherit; transition: all 0.15s; }
+  .weather-btn.sel { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+
+  .seat-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; flex-shrink: 0; }
+  .seat-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+  .seat { width: 38px; height: 38px; border-radius: 6px; border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--text3); user-select: none; transition: transform 0.1s; flex-shrink: 0; }
+  .seat:hover { transform: scale(1.12); position: relative; z-index: 2; }
+  .seat.occupied { background: var(--green-bg); border-color: var(--green-border); color: var(--green-text); }
+  .seat.vip { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber-text); }
+  .seat.offline { background: var(--surface2); border-color: var(--border); color: var(--text3); opacity: 0.45; }
+
+  .counter-bar { margin-top: 14px; padding: 12px 16px; background: var(--surface2); border-radius: var(--radius); display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--text2); }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+  .btn { padding: 10px 22px; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; border: none; font-family: inherit; transition: opacity 0.15s, transform 0.1s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: var(--surface); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border2); }
+  .btn-danger { background: var(--red-bg); color: var(--red-text); border: 1px solid var(--red-border); }
+  .save-msg { font-size: 13px; color: var(--green-text); font-weight: 500; }
+
+  .records-list { display: flex; flex-direction: column; gap: 8px; }
+  .record-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; display: grid; grid-template-columns: 100px 1fr auto; gap: 12px; align-items: center; }
+  @media(max-width:500px){.record-item{grid-template-columns:1fr;gap:8px;}}
+  .record-time { font-size: 12px; color: var(--text2); line-height: 1.9; }
+  .record-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+  .rstat { font-size: 13px; color: var(--text); }
+  .rstat span { color: var(--text3); font-size: 11px; }
+  .record-note { font-size: 11px; color: var(--text3); margin-top: 4px; font-style: italic; }
+  .rate-badge { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
+  .rate-hi { background: var(--green-bg); color: var(--green-text); }
+  .rate-md { background: var(--amber-bg); color: var(--amber-text); }
+  .rate-lo { background: var(--red-bg); color: var(--red-text); }
+  .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; padding: 4px 8px; border-radius: var(--radius); transition: all 0.15s; }
+  .del-btn:hover { color: var(--red-text); background: var(--red-bg); }
+
+  .filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-row select { padding: 6px 10px; font-size: 13px; font-family: inherit; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); }
+
+  .chart-wrap { position: relative; width: 100%; }
+  .heatmap-container { overflow-x: auto; }
+  .heatmap-grid { display: grid; grid-template-columns: 52px repeat(6,1fr); gap: 4px; min-width: 420px; }
+  .hm-header { text-align: center; color: var(--text3); padding: 4px 2px; font-size: 11px; font-weight: 500; }
+  .hm-row-label { color: var(--text2); display: flex; align-items: center; font-size: 11px; font-weight: 500; }
+  .hm-cell { height: 34px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+  .sstat { width: 38px; height: 38px; border-radius: 6px; border: 1px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; position: relative; cursor: default; }
+  .sstat:hover::after { content: attr(data-tip); position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--surface); font-size: 11px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; z-index: 10; pointer-events: none; }
+
+  .empty-state { text-align: center; padding: 48px 16px; color: var(--text3); font-size: 14px; }
+  .empty-state .big { font-size: 40px; margin-bottom: 8px; }
+
+  .info-box { background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; color: var(--blue-text); line-height: 1.9; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🖥</div>
+  <div>
+    <h1>网吧客流管理系统</h1>
+    <p id="last-sync-time">数据云端同步</p>
+  </div>
+  <div class="sync-status">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">连接中...</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('record')">📝 登记客流</button>
+    <button class="tab" onclick="switchTab('history')">📋 历史记录</button>
+    <button class="tab" onclick="switchTab('trend')">📈 趋势分析</button>
+    <button class="tab" onclick="switchTab('seats')">🗺 座位热度</button>
+  </div>
+
+  <!-- 登记 -->
+  <div class="section active" id="tab-record">
+    <div class="card">
+      <div class="card-title">基本信息</div>
+      <div class="form-grid">
+        <div class="form-group"><label>日期</label><input type="date" id="inp-date"></div>
+        <div class="form-group">
+          <label>时间段</label>
+          <select id="inp-slot">
+            <option value="10:00">10:00（上午）</option>
+            <option value="14:00">14:00（下午）</option>
+            <option value="17:30">17:30（放学/下班）</option>
+            <option value="19:30">19:30（晚高峰）</option>
+            <option value="21:30">21:30（夜场）</option>
+            <option value="00:00">00:00（通宵）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>天气</label>
+          <div class="weather-row" id="weather-row">
+            <button class="weather-btn sel" onclick="selW(this,'晴')">☀️ 晴</button>
+            <button class="weather-btn" onclick="selW(this,'多云')">⛅ 多云</button>
+            <button class="weather-btn" onclick="selW(this,'雨')">🌧 雨</button>
+            <button class="weather-btn" onclick="selW(this,'台风')">🌀 台风</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>星期</label>
+          <select id="inp-weekday">
+            <option>周一</option><option>周二</option><option>周三</option>
+            <option>周四</option><option>周五</option><option selected>周六</option><option>周日</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>备注</label>
+          <textarea id="inp-note" placeholder="促销活动、特殊事件等..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">座位状态</div>
+      <div class="seat-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green-bg);border-color:var(--green-border)"></div>有人</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amber-bg);border-color:var(--amber-border)"></div>VIP</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--surface2);border-color:var(--border);opacity:.5"></div>离线/维修</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--surface);border-color:var(--border2)"></div>空闲</div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">点击循环切换：空闲 → 有人 → VIP → 离线</div>
+      <div class="seat-grid" id="seat-grid"></div>
+      <div class="counter-bar">
+        <span>有人：<b id="c-occ" style="color:var(--green-text)">0</b></span>
+        <span>VIP：<b id="c-vip" style="color:var(--amber-text)">0</b></span>
+        <span>离线：<b id="c-off" style="color:var(--text3)">0</b></span>
+        <span>空闲：<b id="c-free">110</b></span>
+        <span>上座率：<b id="c-rate">0%</b></span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveRecord()">☁️ 保存并同步</button>
+      <button class="btn btn-secondary" onclick="clearSeats()">清空座位</button>
+      <button class="btn btn-secondary" onclick="quickFill()">快速填入数量</button>
+      <span class="save-msg" id="save-msg"></span>
+    </div>
+  </div>
+
+  <!-- 历史 -->
+  <div class="section" id="tab-history">
+    <div class="metrics">
+      <div class="metric-card"><div class="metric-label">总记录次数</div><div class="metric-value" id="m-total">0</div></div>
+      <div class="metric-card"><div class="metric-label">平均上座率</div><div class="metric-value" id="m-avg">—</div></div>
+      <div class="metric-card"><div class="metric-label">最高上座率</div><div class="metric-value" id="m-peak">—</div></div>
+      <div class="metric-card"><div class="metric-label">记录天数</div><div class="metric-value" id="m-days">0</div></div>
+    </div>
+    <div class="filter-row">
+      <span style="font-size:13px;color:var(--text2)">筛选：</span>
+      <select id="f-slot" onchange="renderHistory()"><option value="">全部时段</option><option>10:00</option><option>14:00</option><option>17:30</option><option>19:30</option><option>21:30</option><option>00:00</option></select>
+      <select id="f-wd" onchange="renderHistory()"><option value="">全部星期</option><option>周一</option><option>周二</option><option>周三</option><option>周四</option><option>周五</option><option>周六</option><option>周日</option></select>
+      <select id="f-wt" onchange="renderHistory()"><option value="">全部天气</option><option>晴</option><option>多云</option><option>雨</option><option>台风</option></select>
+    </div>
+    <div class="records-list" id="records-list"><div class="empty-state"><div class="big">📋</div>暂无记录</div></div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-secondary" onclick="exportCSV()">📥 导出 CSV</button>
+      <button class="btn btn-danger" onclick="clearAll()">🗑 清除全部</button>
+    </div>
+  </div>
+
+  <!-- 趋势 -->
+  <div class="section" id="tab-trend">
+    <div class="card">
+      <div class="card-title">各时段上座率趋势</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="trend-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">星期 × 时段热力图</div>
+      <div class="heatmap-container"><div class="heatmap-grid" id="heatmap"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">天气影响</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="weather-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 座位 -->
+  <div class="section" id="tab-seats">
+    <div class="card">
+      <div class="card-title">座位占用热度</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--text2)">
+        <span>🟢 极热门</span><span>🟡 热门</span><span>⬜ 一般 / 从未</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px" id="stats-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">分析结论</div>
+      <div id="seat-analysis" style="font-size:13px;color:var(--text2);line-height:2">保存记录后即可查看。</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const TOTAL = 110;
+const SLOTS = ['10:00','14:00','17:30','19:30','21:30','00:00'];
+const SLOT_NAMES = {'10:00':'上午','14:00':'下午','17:30':'放学','19:30':'晚高峰','21:30':'夜场','00:00':'通宵'};
+const WDS = ['周一','周二','周三','周四','周五','周六','周日'];
+const API = '/api/records';
+
+let seatStates = {}, weather = '晴', records = [];
+let tChart = null, wChart = null;
+
+/* ── Sync ── */
+function setSyncState(state, label) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot ' + state;
+  document.getElementById('sync-label').textContent = label;
+}
+
+async function fetchRecords() {
+  setSyncState('loading', '同步中...');
+  try {
+    const r = await fetch(API);
+    const d = await r.json();
+    if (d.ok) {
+      records = d.records || [];
+      const t = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+      setSyncState('ok', `已同步 ${t}`);
+      document.getElementById('last-sync-time').textContent = `上次同步 ${t}`;
+      renderHistory();
+    } else throw new Error(d.msg);
+  } catch(e) {
+    setSyncState('err', '同步失败');
+    // 降级到 localStorage
+    try { records = JSON.parse(localStorage.getItem('cafe_backup') || '[]'); } catch(_){}
+  }
+}
+
+async function pushRecords() {
+  setSyncState('loading', '保存中...');
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.msg);
+    localStorage.setItem('cafe_backup', JSON.stringify(records));
+    const t = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    setSyncState('ok', `已保存 ${t}`);
+    return true;
+  } catch(e) {
+    setSyncState('err', '保存失败：' + e.message);
+    return false;
+  }
+}
+
+/* ── Init ── */
+function initForm() {
+  const now = new Date();
+  document.getElementById('inp-date').value = now.toISOString().split('T')[0];
+  const d = now.getDay();
+  document.getElementById('inp-weekday').selectedIndex = d === 0 ? 6 : d - 1;
+  const h = now.getHours();
+  let si = h < 10 ? 5 : h < 14 ? 0 : h < 17 ? 1 : h < 19 ? 2 : h < 21 ? 3 : 4;
+  document.getElementById('inp-slot').selectedIndex = si;
+}
+
+function buildGrid() {
+  const g = document.getElementById('seat-grid');
+  g.innerHTML = '';
+  for (let i = 1; i <= TOTAL; i++) {
+    const el = document.createElement('div');
+    el.className = 'seat ' + (seatStates[i] || '');
+    el.textContent = i;
+    el.title = '座位 ' + i;
+    el.onclick = () => { const m={'':'occupied','occupied':'vip','vip':'offline','offline':''}; const nx=m[seatStates[i]||'']; if(!nx) delete seatStates[i]; else seatStates[i]=nx; el.className='seat '+(nx||''); updateCounter(); };
+    g.appendChild(el);
+  }
+  updateCounter();
+}
+
+function updateCounter() {
+  const occ = Object.values(seatStates).filter(v=>v==='occupied').length;
+  const vip = Object.values(seatStates).filter(v=>v==='vip').length;
+  const off = Object.values(seatStates).filter(v=>v==='offline').length;
+  const tot = occ + vip; const active = TOTAL - off;
+  const rate = active > 0 ? Math.round(tot/active*100) : 0;
+  document.getElementById('c-occ').textContent = occ;
+  document.getElementById('c-vip').textContent = vip;
+  document.getElementById('c-off').textContent = off;
+  document.getElementById('c-free').textContent = active - tot;
+  document.getElementById('c-rate').textContent = rate + '%';
+}
+
+function clearSeats() { if(!confirm('清空所有座位？')) return; seatStates={}; buildGrid(); }
+function quickFill() {
+  const n = parseInt(prompt('输入有人座位数量（随机标记）：'));
+  if (isNaN(n)||n<0||n>TOTAL) return;
+  seatStates={};
+  Array.from({length:TOTAL},(_,i)=>i+1).sort(()=>Math.random()-0.5).slice(0,n).forEach(i=>seatStates[i]='occupied');
+  buildGrid();
+}
+function selW(btn, w) {
+  weather = w;
+  document.querySelectorAll('.weather-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+/* ── Save ── */
+async function saveRecord() {
+  const date = document.getElementById('inp-date').value;
+  const slot = document.getElementById('inp-slot').value;
+  const weekday = document.getElementById('inp-weekday').value;
+  const note = document.getElementById('inp-note').value.trim();
+  if (!date) { alert('请先选择日期'); return; }
+
+  const occ = Object.values(seatStates).filter(v=>v==='occupied').length;
+  const vip = Object.values(seatStates).filter(v=>v==='vip').length;
+  const off = Object.values(seatStates).filter(v=>v==='offline').length;
+  const occupied = occ+vip, active = TOTAL-off;
+  const rate = active>0 ? Math.round(occupied/active*100) : 0;
+
+  const rec = { id:Date.now(), date, slot, weekday, weather, occupied, vip, offline:off, active, rate, seats:JSON.parse(JSON.stringify(seatStates)), note, ts:new Date().toISOString() };
+  const ei = records.findIndex(r=>r.date===date&&r.slot===slot);
+  if (ei>=0) { if(!confirm(`${date} ${slot} 已有记录（${records[ei].rate}%），覆盖？`)) return; records[ei]=rec; }
+  else records.push(rec);
+  records.sort((a,b)=>(a.date+a.slot).localeCompare(b.date+b.slot));
+
+  const ok = await pushRecords();
+  const msg = document.getElementById('save-msg');
+  msg.textContent = ok ? `✓ 已云端保存：${date} ${slot}，上座率 ${rate}%` : `⚠️ 云端失败，已本地备份`;
+  setTimeout(()=>msg.textContent='',4000);
+  renderHistory();
+}
+
+/* ── History ── */
+function getRateBadge(r) {
+  return r>=60 ? `<span class="rate-badge rate-hi">${r}%</span>` : r>=30 ? `<span class="rate-badge rate-md">${r}%</span>` : `<span class="rate-badge rate-lo">${r}%</span>`;
+}
+
+function renderHistory() {
+  const fs=document.getElementById('f-slot').value, fw=document.getElementById('f-wd').value, fwt=document.getElementById('f-wt').value;
+  const filtered = records.filter(r=>(!fs||r.slot===fs)&&(!fw||r.weekday===fw)&&(!fwt||r.weather===fwt));
+  if (records.length===0) { ['m-avg','m-peak'].forEach(id=>document.getElementById(id).textContent='—'); document.getElementById('m-total').textContent='0'; document.getElementById('m-days').textContent='0'; document.getElementById('records-list').innerHTML='<div class="empty-state"><div class="big">📋</div>暂无记录</div>'; return; }
+  const rates = records.map(r=>r.rate);
+  document.getElementById('m-total').textContent = records.length;
+  document.getElementById('m-avg').textContent = Math.round(rates.reduce((a,b)=>a+b,0)/rates.length)+'%';
+  document.getElementById('m-peak').textContent = Math.max(...rates)+'%';
+  document.getElementById('m-days').textContent = new Set(records.map(r=>r.date)).size;
+  const list = document.getElementById('records-list');
+  if (!filtered.length) { list.innerHTML='<div class="empty-state"><div class="big">🔍</div>无符合条件记录</div>'; return; }
+  list.innerHTML = [...filtered].reverse().map(r=>`
+    <div class="record-item">
+      <div class="record-time"><b>${r.date}</b><br>${r.slot} ${r.weekday}<br><span style="font-size:11px;color:var(--text3)">${r.weather}</span></div>
+      <div>
+        <div class="record-stats">
+          <div class="rstat">${r.occupied} <span>有人</span></div>
+          <div class="rstat">${r.active-r.occupied} <span>空闲</span></div>
+          <div class="rstat">${r.offline} <span>离线</span></div>
+          ${r.vip?`<div class="rstat">${r.vip} <span>VIP</span></div>`:''}
+        </div>
+        ${r.note?`<div class="record-note">${r.note}</div>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">${getRateBadge(r.rate)}<button class="del-btn" onclick="delRec(${r.id})">✕</button></div>
+    </div>`).join('');
+}
+
+async function delRec(id) {
+  if (!confirm('删除此条记录？')) return;
+  records = records.filter(r=>r.id!==id);
+  await pushRecords();
+  renderHistory();
+}
+
+async function clearAll() {
+  if (!confirm('清除全部数据？不可撤销！')) return;
+  records=[];
+  await pushRecords();
+  renderHistory();
+  alert('已清除。');
+}
+
+function exportCSV() {
+  if (!records.length) { alert('暂无数据'); return; }
+  const h='日期,时间段,星期,天气,有人,VIP,空闲,离线,有效机位,上座率,备注';
+  const rows=records.map(r=>[r.date,r.slot,r.weekday,r.weather,r.occupied,r.vip||0,r.active-r.occupied,r.offline,r.active,r.rate+'%',r.note||''].join(','));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent([h,...rows].join('\n'));
+  a.download='网吧客流_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+/* ── Trend ── */
+function renderTrend() {
+  if (!records.length) return;
+  const dates=[...new Set(records.map(r=>r.date))].sort();
+  const colors={'10:00':'#4a9eda','14:00':'#2daa7a','17:30':'#e8a030','19:30':'#d45080','21:30':'#8070cc','00:00':'#888888'};
+  const datasets=SLOTS.map(slot=>({ label:slot, data:dates.map(d=>{const r=records.find(x=>x.date===d&&x.slot===slot);return r?r.rate:null;}), borderColor:colors[slot], backgroundColor:colors[slot]+'18', tension:0.3, spanGaps:true, pointRadius:4, borderDash:slot==='00:00'?[5,3]:[], borderWidth:2 }));
+  const ctx=document.getElementById('trend-chart');
+  if(tChart)tChart.destroy();
+  tChart=new Chart(ctx,{type:'line',data:{labels:dates,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},tooltip:{callbacks:{label:c=>`${c.dataset.label}（${SLOT_NAMES[c.dataset.label]}）: ${c.parsed.y}%`}}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:11}},grid:{color:'rgba(128,128,128,0.08)'}},x:{ticks:{font:{size:11},maxRotation:45,autoSkip:dates.length>14}}}}});
+  renderHeatmap();
+  renderWeatherChart();
+}
+
+function renderHeatmap() {
+  const wrap=document.getElementById('heatmap');
+  const cell=v=>{ if(v===null)return'background:var(--surface2);color:var(--text3);'; if(v>=70)return'background:#1a7a10;color:#fff;'; if(v>=50)return'background:#4aaa20;color:#fff;'; if(v>=35)return'background:var(--green-bg);color:var(--green-text);'; if(v>=20)return'background:var(--amber-bg);color:var(--amber-text);'; return'background:var(--red-bg);color:var(--red-text);'; };
+  let html='<div class="hm-header"></div>'+SLOTS.map(s=>`<div class="hm-header">${s}</div>`).join('');
+  WDS.forEach(wd=>{ html+=`<div class="hm-row-label">${wd}</div>`; SLOTS.forEach(slot=>{ const rs=records.filter(r=>r.weekday===wd&&r.slot===slot); const v=rs.length?Math.round(rs.reduce((a,r)=>a+r.rate,0)/rs.length):null; html+=`<div class="hm-cell" style="${cell(v)}">${v!==null?v+'%':'—'}</div>`; }); });
+  wrap.innerHTML=html;
+}
+
+function renderWeatherChart() {
+  const ws=['晴','多云','雨','台风'];
+  const avgs=ws.map(w=>{const rs=records.filter(r=>r.weather===w);return rs.length?Math.round(rs.reduce((a,r)=>a+r.rate,0)/rs.length):0;});
+  const cnts=ws.map(w=>records.filter(r=>r.weather===w).length);
+  const ctx=document.getElementById('weather-chart');
+  if(wChart)wChart.destroy();
+  wChart=new Chart(ctx,{type:'bar',data:{labels:ws.map((w,i)=>`${w}（${cnts[i]}次）`),datasets:[{label:'平均上座率',data:avgs,backgroundColor:['#e8c830cc','#88aacccc','#4488cccc','#aa66cccc'],borderColor:['#c8a010','#6688aa','#2266aa','#886aaa'],borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`平均上座率: ${c.parsed.y}%`}}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:11}}},x:{ticks:{font:{size:11}}}}}});
+}
+
+/* ── Seats ── */
+function renderSeatStats() {
+  const counts={};
+  records.forEach(r=>Object.entries(r.seats||{}).forEach(([n,s])=>{ if(s==='occupied'||s==='vip') counts[n]=(counts[n]||0)+1; }));
+  const maxC=Math.max(...Object.values(counts),1);
+  const g=document.getElementById('stats-grid');
+  g.innerHTML='';
+  for(let i=1;i<=TOTAL;i++){
+    const c=counts[i]||0; const ratio=c/maxC;
+    let bg,clr,bc;
+    if(c===0){bg='var(--surface2)';clr='var(--text3)';bc='var(--border)';}
+    else if(ratio>.8){bg='#1a5c05';clr='#fff';bc='#0a3a02';}
+    else if(ratio>.55){bg='#3a8a15';clr='#fff';bc='#2a6a0a';}
+    else if(ratio>.3){bg='var(--green-bg)';clr='var(--green-text)';bc='var(--green-border)';}
+    else{bg='var(--surface2)';clr='var(--text2)';bc='var(--border2)';}
+    const el=document.createElement('div');
+    el.className='sstat';
+    el.style.cssText=`background:${bg};color:${clr};border-color:${bc};`;
+    el.textContent=i;
+    el.setAttribute('data-tip',`#${i} 被占${c}次`);
+    g.appendChild(el);
+  }
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const top=sorted.slice(0,10).map(([n,c])=>`<b>#${n}</b>(${c}次)`).join(' ');
+  const cold=Array.from({length:TOTAL},(_,i)=>i+1).filter(n=>!counts[n]);
+  const slotBest=SLOTS.map(s=>{const rs=records.filter(r=>r.slot===s);return{s,avg:rs.length?Math.round(rs.reduce((a,r)=>a+r.rate,0)/rs.length):0};}).sort((a,b)=>b.avg-a.avg);
+  document.getElementById('seat-analysis').innerHTML=records.length===0?'保存记录后查看。':`<b>最热门 Top10：</b>${top||'—'}<br><b>从未被占：</b>${cold.length?cold.slice(0,15).map(n=>'#'+n).join(' ')+(cold.length>15?` 等共${cold.length}个`:''):'全部都有记录 🎉'}<br><b>最旺时段：</b>${slotBest[0].avg?`${slotBest[0].s}（${SLOT_NAMES[slotBest[0].s]}）${slotBest[0].avg}%`:'—'}<br><b>最冷时段：</b>${slotBest[slotBest.length-1].avg?`${slotBest[slotBest.length-1].s}（${SLOT_NAMES[slotBest[slotBest.length-1].s]}）${slotBest[slotBest.length-1].avg}%`:'—'}`;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['record','history','trend','seats'][i]===name));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='history')renderHistory();
+  if(name==='trend')renderTrend();
+  if(name==='seats')renderSeatStats();
+}
+
+initForm();
+buildGrid();
+fetchRecords();
+setInterval(fetchRecords, 5 * 60 * 1000);
+</script>
+</body>
+</html>

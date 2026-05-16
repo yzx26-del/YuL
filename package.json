@@ -1,0 +1,8 @@
+{
+  "name": "cafe-tracker",
+  "version": "1.0.0",
+  "description": "网吧客流管理系统",
+  "dependencies": {
+    "@vercel/kv": "^1.0.1"
+  }
+}
